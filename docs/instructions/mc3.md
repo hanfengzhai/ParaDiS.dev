@@ -224,7 +224,7 @@ cd examples/frank_read
 python visualize.py
 ```
 
-Outputs are written to `examples/frank_read/output/` (PNGs, GIF, properties plots).
+Outputs are written to `examples/frank_read/output/` (PNGs, MP4/MOV animation, properties plots).
 
 ## makefile reference
 
