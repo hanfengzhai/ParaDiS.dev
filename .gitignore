@@ -7,3 +7,13 @@ obj
 .DS_Store
 *~
 *.pdf *.log
+*.err
+*.out
+*.pdf
+*.png
+*.json
+*.txt
+*.data
+*.mov
+*.mp4
+*.avi

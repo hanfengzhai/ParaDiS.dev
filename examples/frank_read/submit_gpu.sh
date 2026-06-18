@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH -J paradis-frank-read
-#SBATCH -o frank_read.%j.out
-#SBATCH -e frank_read.%j.err
+#SBATCH -o bash_logs/frank_read.%j.out
+#SBATCH -e bash_logs/frank_read.%j.err
 #SBATCH -p gpu-ampere
 #SBATCH -N 1
 #SBATCH --ntasks=8
@@ -11,12 +11,26 @@
 
 set -euo pipefail
 
+mkdir -p bash_logs
+
 module purge
 module load gnu12/12.3.0
 module load openmpi4/4.1.6
 module load cuda/12.5
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+# Slurm copies the job script to /var/spool/... — do not derive the repo from $0.
+# SLURM_SUBMIT_DIR is the directory where sbatch was run.
+if [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/frank_read.ctrl" ]]; then
+    REPO_ROOT="$(cd "${SLURM_SUBMIT_DIR}/../.." && pwd)"
+elif [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/examples/frank_read/frank_read.ctrl" ]]; then
+    REPO_ROOT="$(cd "${SLURM_SUBMIT_DIR}" && pwd)"
+elif [[ -f "$(dirname "$0")/frank_read.ctrl" ]]; then
+    REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+else
+    echo "ERROR: cannot locate ParaDiS repository root" >&2
+    echo "Submit from examples/frank_read:  cd examples/frank_read && sbatch submit_gpu.sh" >&2
+    exit 1
+fi
 cd "$REPO_ROOT"
 
 EXE="${REPO_ROOT}/bin/paradis"

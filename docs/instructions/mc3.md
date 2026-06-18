@@ -138,7 +138,8 @@ The example under `examples/frank_read/` uses elastic FMM forces and
 
 ```bash
 cd /path/to/ParaDiS.llnl.git/examples/frank_read
-sbatch submit.sh
+sbatch submit_gpu.sh    # GPU (gpu-ampere)
+# sbatch submit_cpu.sh  # CPU partition
 ```
 
 Monitor:
@@ -149,7 +150,9 @@ tail -f frank_read.<jobid>.out
 ```
 
 The submit script builds with `GPU_ENABLED=ON` on the GPU node if `bin/paradis`
-is missing.
+is missing. **Submit from `examples/frank_read/`** so Slurm sets
+`SLURM_SUBMIT_DIR` correctly (Slurm copies the script to `/var/spool/`; using
+`$0` to find the repo will fail).
 
 ---
 
@@ -212,6 +215,16 @@ make SYS=linux
 | `NVCC compiler not found` | Build on a GPU compute node with `cuda/12.5` loaded |
 | FMM table not found at runtime | Launch `paradis` from the repository root |
 | MPI task count error | Match `srun -n` to `numXdoms * numYdoms * numZdoms` in the `.ctrl` file |
+| `Repo: /var/spool` in job output | Re-submit from `examples/frank_read/` with `submit_gpu.sh` or `submit_cpu.sh` (uses `SLURM_SUBMIT_DIR`) |
+
+After the run, visualize results:
+
+```bash
+cd examples/frank_read
+python visualize.py
+```
+
+Outputs are written to `examples/frank_read/output/` (PNGs, GIF, properties plots).
 
 ## makefile reference
 
