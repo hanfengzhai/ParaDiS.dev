@@ -28,6 +28,8 @@ DEFAULT_RESULTS = os.path.join(SCRIPT_DIR, "frank_read_results")
 DEFAULT_OUTPUT = os.path.join(SCRIPT_DIR, "output")
 PROP_NAMES = ("time_Plastic_strain", "density", "alleps")
 FRAME_GLOB_PREFIX = "0t"
+FINAL_FRAME_NAME = "gnuplot.final"
+DEFAULT_GNUPLOT_FREQ = 100
 FIG_DPI = 200
 FONT_SIZE = 15
 DISL_COLOR = "#1f4fd8"
@@ -50,11 +52,13 @@ class FrankReadVisualizer:
         self.dpi = dpi
         self.burgmag_m = burgmag_m
         self.um_per_b = None
+        self.gnuplotfreq = DEFAULT_GNUPLOT_FREQ
         self.box_limits = None
 
     def run(self):
         if not os.path.isdir(self.gnu_dir):
             raise SystemExit("gnuplot directory not found: {}".format(self.gnu_dir))
+        self.gnuplotfreq = self._resolve_gnuplotfreq()
         box_path = os.path.join(self.gnu_dir, "box.in")
         box_edges = self._parse_box(box_path) if os.path.isfile(box_path) else np.zeros((0, 2, 3))
         self.um_per_b = self._resolve_um_per_b()
@@ -73,10 +77,62 @@ class FrankReadVisualizer:
         self._write_summary(frame_files, box_edges)
         tqdm.write("Done. Outputs in {}".format(self.output_dir))
 
+    def _resolve_gnuplotfreq(self):
+        for path in self._ctrl_paths():
+            if not os.path.isfile(path):
+                continue
+            with open(path) as fh:
+                text = fh.read()
+            match = re.search(r"^\s*gnuplotfreq\s*=\s*(\d+)", text, re.MULTILINE)
+            if match:
+                return int(match.group(1))
+        return DEFAULT_GNUPLOT_FREQ
+
+    def _resolve_max_cycle(self):
+        for path in self._ctrl_paths():
+            if not os.path.isfile(path):
+                continue
+            with open(path) as fh:
+                text = fh.read()
+            match = re.search(r"^\s*maxstep\s*=\s*(\d+)", text, re.MULTILINE)
+            if match:
+                return int(match.group(1))
+        for path in [
+            os.path.join(SCRIPT_DIR, "frank_read.log"),
+            os.path.join(os.path.dirname(self.results_dir), "frank_read.log"),
+        ]:
+            if not os.path.isfile(path):
+                continue
+            with open(path) as fh:
+                text = fh.read()
+            match = re.search(r"last\s+cycle\s*:\s*(\d+)", text)
+            if match:
+                return int(match.group(1))
+        return None
+
+    def _ctrl_paths(self):
+        return [
+            os.path.join(SCRIPT_DIR, "frank_read.ctrl"),
+            os.path.join(os.path.dirname(self.results_dir), "frank_read.ctrl"),
+        ]
+
     def _list_gnuplot_frames(self):
         names = sorted(n for n in os.listdir(self.gnu_dir)
                        if n.startswith(FRAME_GLOB_PREFIX) and not n.endswith(".final"))
         return [os.path.join(self.gnu_dir, n) for n in names]
+
+    def _final_frame_path(self):
+        path = os.path.join(self.gnu_dir, FINAL_FRAME_NAME)
+        return path if os.path.isfile(path) else None
+
+    def _frame_cycle(self, path):
+        name = os.path.basename(path)
+        if name == FINAL_FRAME_NAME:
+            return None
+        match = re.search(r"0t(\d+)", name)
+        if not match:
+            return None
+        return int(match.group(1)) * self.gnuplotfreq
 
     def _parse_box(self, path):
         pts = []
@@ -170,27 +226,19 @@ class FrankReadVisualizer:
         ax.tick_params(labelsize=FONT_SIZE)
         ax.view_init(elev=22, azim=-58)
 
-    def _render_frame(self, segments, box_edges, title, out_path):
+    def _render_frame(self, segments, box_edges, out_path):
         fig = plt.figure(figsize=(8, 7))
         ax = fig.add_subplot(111, projection="3d")
         self._draw_segments(ax, segments, box_edges)
-        ax.set_title(title, fontsize=FONT_SIZE)
         fig.tight_layout()
         fig.savefig(out_path, dpi=self.dpi, bbox_inches="tight")
         plt.close(fig)
-
-    def _frame_label(self, path):
-        name = os.path.basename(path)
-        match = re.search(r"0t(\d+)", name)
-        step = int(match.group(1)) if match else 0
-        return "Frank-Read source, step {}".format(step)
 
     def _render_frames(self, frame_files, box_edges):
         png_paths = []
         for frame_path in tqdm(frame_files, desc="frames"):
             out_png = os.path.join(self.frames_dir, "{}.png".format(os.path.basename(frame_path)))
-            self._render_frame(self._parse_gnuplot_frame(frame_path),
-                               box_edges, self._frame_label(frame_path), out_png)
+            self._render_frame(self._parse_gnuplot_frame(frame_path), box_edges, out_png)
             png_paths.append(out_png)
             tqdm.write("  {}".format(os.path.basename(out_png)))
         return png_paths
@@ -203,13 +251,12 @@ class FrankReadVisualizer:
                 data[name] = np.loadtxt(path)
         return data
 
-    def _save_line_plot(self, x, y, xlabel, ylabel, title, out_name):
+    def _save_line_plot(self, x, y, xlabel, ylabel, out_name):
         fig, ax = plt.subplots(figsize=(7, 4.5))
         ax.plot(x, y, "o-", color=LINE_COLOR, linewidth=2, markersize=4,
                 markerfacecolor=LINE_COLOR, markeredgecolor="black", markeredgewidth=0.4)
         ax.set_xlabel(xlabel, fontsize=FONT_SIZE)
         ax.set_ylabel(ylabel, fontsize=FONT_SIZE)
-        ax.set_title(title, fontsize=FONT_SIZE)
         ax.tick_params(labelsize=FONT_SIZE)
         ax.grid(True, linestyle="--", alpha=0.3)
         fig.tight_layout()
@@ -221,18 +268,18 @@ class FrankReadVisualizer:
             t_eps = props["time_Plastic_strain"]
             self._save_line_plot(t_eps[:, 0], t_eps[:, 1],
                                  "Simulation time (s)", "Plastic strain",
-                                 "Plastic strain vs time", "plastic_strain_vs_time.png")
+                                 "plastic_strain_vs_time.png")
         if "density" not in props:
             return
         dens = props["density"]
         self._save_line_plot(dens[:, 1], dens[:, 2],
                              "Strain", r"Dislocation density ($\mathrm{m}^{-2}$)",
-                             "Dislocation density vs strain", "density_vs_strain.png")
+                             "density_vs_strain.png")
         if "time_Plastic_strain" in props:
             t_eps = props["time_Plastic_strain"]
             self._save_line_plot(t_eps[:, 0], dens[:, 2],
                                  "Simulation time (s)", r"Dislocation density ($\mathrm{m}^{-2}$)",
-                                 "Dislocation density vs time", "density_vs_time.png")
+                                 "density_vs_time.png")
 
     def _video_frame(self, img):
         h, w = img.shape[:2]
@@ -264,20 +311,29 @@ class FrankReadVisualizer:
         tqdm.write("  video skipped (mp4/mov write failed)")
 
     def _write_summary(self, frame_files, box_edges):
-        if len(frame_files) < 2:
+        if not frame_files:
             return
+        final_path = self._final_frame_path()
+        if final_path is None and len(frame_files) < 2:
+            return
+        initial_path = frame_files[0]
+        summary_final = final_path if final_path else frame_files[-1]
         fig = plt.figure(figsize=(14, 6))
-        panels = [(frame_files[0], "Initial"), (frame_files[-1], "Final")]
-        for idx, (frame_path, label) in enumerate(panels, start=1):
+        for idx, frame_path in enumerate((initial_path, summary_final), start=1):
             ax = fig.add_subplot(1, 2, idx, projection="3d")
             self._draw_segments(ax, self._parse_gnuplot_frame(frame_path), box_edges)
-            ax.set_title("{}, {}".format(label, self._frame_label(frame_path)),
-                         fontsize=FONT_SIZE)
-        fig.suptitle("Frank-Read dislocation network", fontsize=FONT_SIZE)
         fig.tight_layout()
         summary = os.path.join(self.output_dir, "first_vs_final.png")
         fig.savefig(summary, dpi=self.dpi, bbox_inches="tight")
         plt.close(fig)
+        init_cycle = self._frame_cycle(initial_path)
+        if summary_final.endswith(FINAL_FRAME_NAME):
+            final_cycle = self._resolve_max_cycle()
+        else:
+            final_cycle = self._frame_cycle(summary_final)
+        tqdm.write("  {} (cycle {}) vs {} (cycle {})".format(
+            os.path.basename(initial_path), init_cycle,
+            os.path.basename(summary_final), final_cycle))
         tqdm.write("  {}".format(summary))
 
 
