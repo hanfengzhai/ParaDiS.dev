@@ -38,6 +38,7 @@ echo "Repo: ${REPO_ROOT}"
 
 if [ ! -x "${EXE}" ]; then
     echo "Building ParaDiS with GPU support on ${HOSTNAME}..."
+    mkdir -p "${REPO_ROOT}/obj/p" "${REPO_ROOT}/obj/s" "${REPO_ROOT}/bin"
     make SYS=linux GPU_ENABLED=ON
 fi
 

@@ -1,85 +1,175 @@
-# Building ParaDiS on MC3
+# MC3 — build and run ParaDiS (step by step)
 
-Instructions for compiling and running ParaDiS on the MC3 OHPC cluster
-(`mc3-login-*` login nodes, `gpu-ampere` / `gpu-tesla` / `cpu` partitions).
+Copy-paste each step in order. Run all commands from a login node unless a
+step says to use a compute/GPU node.
 
-## Prerequisites
+Replace `/path/to/ParaDiS.llnl.git` with your checkout path (e.g.
+`~/codes/ParaDiS.llnl.git`).
 
-- ParaDiS source checked out on MC3 filesystem storage.
-- Slurm account with access to the desired partition.
-- For GPU builds: CUDA is only available on GPU compute nodes, not login nodes.
-  Either build inside a GPU batch/interactive allocation, or let a submit script
-  build on first run (see [Run an example](#run-an-example) below).
+---
 
-## Environment setup
+## Step 0 — Clone (first time only)
 
-Load the GNU toolchain, OpenMPI, and (for GPU builds) CUDA:
+```bash
+cd ~/codes
+git clone git@github.com:hanfengzhai/ParaDiS.git ParaDiS.llnl.git
+cd ParaDiS.llnl.git
+```
+
+---
+
+## Step 1 — Install git hooks (first time only)
+
+Blocks AI-agent `Co-authored-by` trailers in commits.
+
+```bash
+cd /path/to/ParaDiS.llnl.git
+scripts/install-git-hooks.sh
+```
+
+---
+
+## Step 2 — Load modules
+
+`gnu12` must be loaded before `openmpi4`.
 
 ```bash
 module purge
 module load gnu12/12.3.0
 module load openmpi4/4.1.6
-module load cuda/12.5    # GPU builds only; skip for CPU-only
 ```
 
-Verify compilers:
+Verify:
 
 ```bash
 which gcc mpicxx
-# GPU builds also require:
-which nvcc    # only available on GPU compute nodes
+gcc --version | head -1
+mpicxx --version | head -1
 ```
 
-## makefile.setup settings
+---
 
-Edit `makefile.setup` or pass flags on the command line. Recommended MC3
-settings:
+## Step 3 — Check for stuck builds
 
-| Setting | Value | Notes |
-|---------|-------|-------|
-| `SYS` | `linux` | Pass on every `make` invocation |
-| `MODE` | `PARALLEL` | Default |
-| `GPU_ENABLED` | `ON` or `OFF` | `ON` for GPU force kernels |
-| `XLIB_MODE` | `OFF` | No display on cluster nodes |
-
-**Important:** use `SYS=linux`, not `SYS=gcc`. The `gcc` target links against
-`-lmpich`, which is not provided by the OpenMPI module on MC3.
-
-For GPU builds, export CUDA paths before `make` (Ampere nodes use `sm_80`):
+If a previous `make clean` hung, it can delete `obj/` while you compile.
+Kill stray jobs before building:
 
 ```bash
-export CUDA_PATH=/usr/local/cuda-12.5
-export CUDA_LIBS=/usr/local/cuda-12.5/lib64
-export NVCC="${CUDA_PATH}/bin/nvcc"
-export NVCC_FLAGS="-O3 -g -rdc=true -Wno-deprecated-gpu-targets -gencode arch=compute_80,code=sm_80"
+ps aux | grep '[m]ake'
 ```
 
-Adjust `-gencode` for other GPU partitions if needed (`gpu-tesla`, `gpu-A100`, etc.).
+If you see stuck `make clean` processes:
 
-## Build (CPU only)
+```bash
+pkill -9 -f "make clean"
+```
 
-From the repository root on a login node:
+---
+
+## Step 4 — Create build directories
+
+Required before the first build (avoids `can't create ../obj/p/*.o` errors
+with parallel `make -j16`):
 
 ```bash
 cd /path/to/ParaDiS.llnl.git
-module load gnu12/12.3.0 openmpi4/4.1.6
+mkdir -p obj/p obj/s bin
+```
 
+---
+
+## Step 5 — Build (CPU, on login node)
+
+Use `SYS=linux` (not `SYS=gcc` — `gcc` links against `-lmpich`, which MC3
+does not provide).
+
+```bash
+cd /path/to/ParaDiS.llnl.git
 make SYS=linux
 ```
 
-Executables appear in `./bin/`, including `./bin/paradis`.
+Build takes ~1–2 minutes. Expect many `mpicxx ../src/...` lines, ending with
+`creating application ../bin/paradis`.
 
-## Build (with GPU support)
+---
 
-Request a short interactive GPU session, then build there:
+## Step 6 — Verify the build
+
+```bash
+ls -l bin/paradis
+```
+
+You should see an executable ~30 MB. A quick sanity check:
+
+```bash
+ls bin/ | head
+```
+
+Expected entries include `paradis`, `paradisgen`, `ctablegen`.
+
+---
+
+## Step 7 — Run a test simulation (CPU partition)
+
+ParaDiS must be launched from the **repository root** so `inputs/` paths
+resolve.
+
+```bash
+cd /path/to/ParaDiS.llnl.git
+srun -N 1 -n 1 -p cpu --pty \
+  ./bin/paradis tests/frank_read_src.ctrl
+```
+
+For an 8-domain parallel run:
+
+```bash
+srun -N 1 -n 8 -p cpu \
+  ./bin/paradis -d tests/frank_read_src.data tests/frank_read_src.ctrl
+```
+
+(`numXdoms * numYdoms * numZdoms` in the `.ctrl` file must equal `-n`.)
+
+---
+
+## Step 8 — Run the Frank-Read GPU example (optional)
+
+The example under `examples/frank_read/` uses elastic FMM forces and
+`BCC_glide` mobility. Submit from the example directory:
+
+```bash
+cd /path/to/ParaDiS.llnl.git/examples/frank_read
+sbatch submit.sh
+```
+
+Monitor:
+
+```bash
+squeue -u $USER
+tail -f frank_read.<jobid>.out
+```
+
+The submit script builds with `GPU_ENABLED=ON` on the GPU node if `bin/paradis`
+is missing.
+
+---
+
+## GPU build (optional, separate workflow)
+
+CUDA (`nvcc`) is **not** available on login nodes. Request a GPU node first:
 
 ```bash
 salloc -p gpu-ampere --gres=gpu:1 -N 1 -t 00:30:00
+```
 
+Inside the allocation:
+
+```bash
 module purge
 module load gnu12/12.3.0 openmpi4/4.1.6 cuda/12.5
 
 cd /path/to/ParaDiS.llnl.git
+mkdir -p obj/p obj/s bin
+
 export CUDA_PATH=/usr/local/cuda-12.5
 export CUDA_LIBS=/usr/local/cuda-12.5/lib64
 export NVCC="${CUDA_PATH}/bin/nvcc"
@@ -88,50 +178,46 @@ export NVCC_FLAGS="-O3 -g -rdc=true -Wno-deprecated-gpu-targets -gencode arch=co
 make SYS=linux GPU_ENABLED=ON
 ```
 
-## Verify the build
+Verify CUDA sees the GPU:
 
 ```bash
+nvidia-smi -L
 ls -l bin/paradis
-mpirun -n 1 bin/paradis -help 2>&1 | head
 ```
 
-## Run an example
-
-ParaDiS must be launched from the repository root so that `inputs/` paths in
-control files resolve correctly.
-
-### Interactive (CPU partition)
-
-```bash
-cd /path/to/ParaDiS.llnl.git
-srun -N 1 -n 8 -p cpu bin/paradis -d tests/frank_read_src.data tests/frank_read_src.ctrl
-```
-
-### Batch (Frank-Read on gpu-ampere)
-
-A ready-made script is provided under `examples/frank_read/`:
-
-```bash
-cd examples/frank_read
-sbatch submit.sh
-```
-
-The script loads modules, builds with `GPU_ENABLED=ON` if needed, and runs the
-Frank-Read source example with elastic FMM forces and `BCC_glide` mobility.
+---
 
 ## Clean rebuild
 
+Only run when you need a full wipe. **Wait for it to finish** — a hung
+`make clean` can loop on `python/` and delete `obj/` in the background.
+
 ```bash
+cd /path/to/ParaDiS.llnl.git
 make SYS=linux clean
-make SYS=linux GPU_ENABLED=ON   # add GPU_ENABLED=ON if needed
+mkdir -p obj/p obj/s bin
+make SYS=linux
 ```
+
+---
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
-| `target system has not been identified` | Pass `SYS=linux` on every `make` and `make clean` command |
-| `cannot find -lmpich` | You used `SYS=gcc`; switch to `SYS=linux` |
-| `NVCC compiler not found` | Load `cuda/12.5` on a GPU compute node, not a login node |
-| `openmpi4` module won't load | Load `gnu12/12.3.0` first: `module load gnu12/12.3.0 openmpi4/4.1.6` |
-| FMM table not found at runtime | Run `paradis` from the repository root, not from a subdirectory |
+| `can't create ../obj/p/*.o: No such file or directory` | Run Step 3 (kill stuck `make clean`), then Step 4 (`mkdir -p obj/p obj/s bin`), then rebuild |
+| `target system has not been identified` | Add `SYS=linux` to every `make` command |
+| `cannot find -lmpich` | You used `SYS=gcc`; use `SYS=linux` |
+| `openmpi4` module won't load | Load `gnu12/12.3.0` first |
+| `NVCC compiler not found` | Build on a GPU compute node with `cuda/12.5` loaded |
+| FMM table not found at runtime | Launch `paradis` from the repository root |
+| MPI task count error | Match `srun -n` to `numXdoms * numYdoms * numZdoms` in the `.ctrl` file |
+
+## makefile reference
+
+| Setting | MC3 value |
+|---------|-----------|
+| `SYS` | `linux` (pass on command line) |
+| `MODE` | `PARALLEL` (default) |
+| `GPU_ENABLED` | `OFF` for CPU build; `ON` for GPU build |
+| `XLIB_MODE` | `OFF` |

@@ -59,14 +59,15 @@ From the repository root:
 
 ```bash
 cd /path/to/ParaDiS.llnl.git
-
+mkdir -p obj/p obj/s bin
 make SYS=linux.intel
 ```
 
-For a clean rebuild:
+For a clean rebuild (wait for `make clean` to finish before rebuilding):
 
 ```bash
 make SYS=linux.intel clean
+mkdir -p obj/p obj/s bin
 make SYS=linux.intel
 ```
 
@@ -156,4 +157,5 @@ Or remove individual result directories listed in each test's `.ctrl` file.
 | MPI launch hangs or wrong task count | Match `srun -n` to `numXdoms * numYdoms * numZdoms` |
 | Missing FMM table | Run from repo root; confirm `inputs/fm-ctab.*.dat` exists |
 | `cannot find -lmpich` with `SYS=linux.intel` | Ensure the Intel/MVAPICH module is loaded before building |
+| `can't create ../obj/p/*.o` | Run `mkdir -p obj/p obj/s bin` before `make`; kill stuck `make clean` jobs |
 | HDF5 link errors | Leave `HDF_MODE` off in `makefile.setup` unless HDF restart is needed |

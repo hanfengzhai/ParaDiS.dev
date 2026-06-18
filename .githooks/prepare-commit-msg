@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Strip AI-agent Co-authored-by trailers before commit-msg runs.
+set -euo pipefail
+
+msg_file="${1:?commit message file}"
+
+# Keep in sync with .githooks/commit-msg
+ai_coauthor_re='^Co-authored-by:.*(cursor|cursoragent|cursor\.com|cursor agent|github.copilot|copilot|openai|chatgpt|gpt-|claude|anthropic|gemini|bard|meta ai|llama|perplexity|ai.agent|ai-agent|cursoragent@|openai\.com|anthropic\.com)'
+
+tmp="$(mktemp)"
+grep -Eiv "$ai_coauthor_re" "$msg_file" >"$tmp" || true
+mv "$tmp" "$msg_file"

@@ -62,6 +62,7 @@ From the repository root:
 
 ```bash
 cd /path/to/ParaDiS.llnl.git
+mkdir -p obj/p obj/s bin
 make
 ```
 
@@ -72,6 +73,7 @@ For a clean rebuild:
 
 ```bash
 make clean
+mkdir -p obj/p obj/s bin
 make
 ```
 
@@ -139,3 +141,4 @@ make -C tests clean
 | `target system has not been identified` on Linux VM | You are not on macOS; use [lc-linux.md](lc-linux.md) instead |
 | MPI task count mismatch | Set `mpirun -n` to `numXdoms * numYdoms * numZdoms` |
 | Missing `inputs/` files at runtime | Run `paradis` from the repository root |
+| `can't create ../obj/p/*.o` | Run `mkdir -p obj/p obj/s bin` before `make` |

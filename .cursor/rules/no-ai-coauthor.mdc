@@ -1,0 +1,15 @@
+---
+description: Never add AI agents as git commit co-authors
+alwaysApply: true
+---
+
+# Git commits — no AI co-authors
+
+When creating git commits in this repository:
+
+- Do **not** add `Co-authored-by` trailers for Cursor, Cursor Agent, `cursoragent`, or any other AI coding assistant.
+- Do **not** credit Copilot, ChatGPT, Claude, Gemini, or similar tools as co-authors.
+- Do **not** pass `--trailer "Co-authored-by:..."` with any AI-related identity.
+- Commit messages must list only the human author(s) of the change.
+
+The repo enforces this via `.githooks/prepare-commit-msg` (strips AI trailers) and `.githooks/commit-msg` (rejects any that remain). Install with `scripts/install-git-hooks.sh`.

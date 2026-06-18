@@ -56,7 +56,7 @@ rebuild_all: clean $(OBJDIR) $(BINDIR)
 	( cd utils ; $(MAKE) -j; )
 
 $(OBJDIR) :
-	mkdir -p $(OBJDIR)
+	mkdir -p $(OBJDIR)/p $(OBJDIR)/s
 
 $(BINDIR) :
 	mkdir -p $(BINDIR)

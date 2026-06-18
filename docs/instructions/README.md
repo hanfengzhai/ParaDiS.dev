@@ -1,36 +1,35 @@
-# ParaDiS Build Instructions
+# ParaDiS build instructions
 
-Machine-specific guides for installing and compiling ParaDiS. Each document
-covers prerequisites, environment setup, build commands, verification, and a
-minimal test run.
+Step-by-step guides for compiling and running ParaDiS on each machine.
 
-| Machine | Document | Typical use |
-|---------|----------|-------------|
-| MC3 (OHPC, Ampere GPU) | [mc3.md](mc3.md) | GPU-enabled builds and batch jobs |
-| LLNL LC Linux clusters (Quartz, Pascal, …) | [lc-linux.md](lc-linux.md) | CPU MPI production and development |
-| macOS (MacBook / local) | [macos.md](macos.md) | Local development and debugging |
+| Machine | Guide | Start here |
+|---------|-------|------------|
+| **MC3** (you are likely here) | [mc3.md](mc3.md) | Steps 0–8, copy-paste in order |
+| LLNL LC Linux (Quartz, Pascal, …) | [lc-linux.md](lc-linux.md) | Intel/MVAPICH workflow |
+| macOS (local Mac) | [macos.md](macos.md) | Homebrew OpenMPI workflow |
 
-## Common build overview
+## Quick start on MC3
 
-All platforms share the same makefile-based build:
+```bash
+module purge && module load gnu12/12.3.0 openmpi4/4.1.6
+cd ~/codes/ParaDiS.llnl.git
+mkdir -p obj/p obj/s bin
+make SYS=linux
+ls -l bin/paradis
+```
 
-1. Clone or copy the ParaDiS source tree.
-2. Load the compiler and MPI modules for your machine (see per-machine docs).
-3. Set build options in `makefile.setup` or pass them on the `make` command line.
-4. Run `make` from the repository root.
-5. Confirm that `./bin/paradis` was created.
+Full details, GPU builds, and troubleshooting: **[mc3.md](mc3.md)**.
 
-The two makefile parameters that matter on every machine are:
+## Key rules (all machines)
 
-- **`SYS`** — selects compiler and library paths in `makefile.sys`. On Linux
-  clusters this must be passed explicitly, e.g. `make SYS=linux`.
-- **`MODE`** — `PARALLEL` (default, MPI) or `SERIAL`. Parallel builds require
-  a working `mpicxx`.
+1. Always run `make` from the **repository root**.
+2. On Linux clusters, pass **`SYS=linux`** (or `SYS=linux.intel` on LC) on every
+   `make` command — it is not auto-detected.
+3. Create **`obj/p obj/s bin`** before the first build to avoid parallel-make
+   directory errors.
+4. Launch **`paradis` from the repository root** so `inputs/` paths in `.ctrl`
+   files resolve.
+5. Install git hooks once: `scripts/install-git-hooks.sh`.
 
-Optional flags in `makefile.setup`:
-
-- **`GPU_ENABLED=ON`** — compile CUDA device code (requires `nvcc` on the build node).
-- **`XLIB_MODE=OFF`** — disable X-Window visualization (recommended for HPC).
-
-See the root [README.md](../../README.md) for a full list of build switches and
-directory layout.
+See the root [README.md](../../README.md) for makefile switches and directory
+layout.

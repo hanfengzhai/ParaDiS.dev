@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Reject commits that credit Cursor, cursoragent, or any other AI agent as co-author.
+set -euo pipefail
+
+msg_file="${1:?commit message file}"
+
+# Keep in sync with .githooks/prepare-commit-msg
+ai_coauthor_re='^Co-authored-by:.*(cursor|cursoragent|cursor\.com|cursor agent|github.copilot|copilot|openai|chatgpt|gpt-|claude|anthropic|gemini|bard|meta ai|llama|perplexity|ai.agent|ai-agent|cursoragent@|openai\.com|anthropic\.com)'
+
+if grep -Eiq "$ai_coauthor_re" "$msg_file"; then
+  echo 'commit-msg hook: AI agent Co-authored-by trailers are not allowed.' >&2
+  echo 'Remove Co-authored-by lines for Cursor, cursoragent, Copilot, Claude,' >&2
+  echo 'ChatGPT, Gemini, or any other AI agent, then commit again.' >&2
+  exit 1
+fi

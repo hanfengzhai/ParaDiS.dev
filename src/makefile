@@ -53,11 +53,11 @@ include ../makefile.srcs
 
 .SUFFIXES : .cc .cpp 
 
-$(OBJDIR)/%.o: ../src/%.cc   $(MAKEFILES)
+$(OBJDIR)/%.o: ../src/%.cc   $(MAKEFILES) | $(OBJDIR)
 	@echo $(CPP) $<
 	@$(CPP) $(OPT) $(CPPFLAG) $(INCS) -c $< -o $@
 
-$(OBJDIR)/%.o: ../src/%.cpp  $(MAKEFILES)
+$(OBJDIR)/%.o: ../src/%.cpp  $(MAKEFILES) | $(OBJDIR)
 	@echo $(CPP) $<
 	@$(CPP) $(OPT) $(CPPFLAG) $(INCS) -c $< -o $@
 
