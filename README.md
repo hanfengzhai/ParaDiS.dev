@@ -1,7 +1,7 @@
 
 # ParaDiS
 
-**Personal research fork.** This repository is Hanfeng Zhai's working copy of ParaDiS, adjusted for dislocation-dynamics studies in the **Micro- and Nano-Mechanics Group** at Stanford University. It adds example workflows, cluster build notes, and visualization tooling on top of the public release. Upstream ParaDiS is not actively developed; see OpenDiS below.
+**Personal research fork.** This repository is my working copy of ParaDiS, adjusted for dislocation-dynamics studies in the **Micro and Nano Mechanics Group** at Stanford University. It adds example workflows, cluster build notes, and visualization tooling on top of the public release. Upstream ParaDiS is not actively developed; see OpenDiS below.
 
 **IMPORTANT: ParaDiS development is no longer supported as the code is being replaced by our new open-source project [OpenDiS](https://github.com/OpenDiS/OpenDiS), which includes the high-performance [ExaDiS](https://github.com/LLNL/exadis) core library that runs on GPU. More information about OpenDiS is available at the [OpenDiS documentation](https://opendis.github.io/OpenDiS).**
 
@@ -11,16 +11,13 @@ ParaDiS (Parallel Dislocation Simulator) performs direct numerical simulation of
 
 The code has been deployed on large HPC systems and used to study strength and strain hardening in cubic crystals, micro-pillars, and irradiated materials at LLNL (including runs with over ten million active degrees of freedom).
 
-## This fork (Stanford MNMG)
+## This fork
 
-| Addition | Location |
-|----------|----------|
-| Numbered simulation examples (glissile loops, Frank-Read, strain hardening) | `examples/` |
-| Shared visualization (`ParadiSVisualizer`) | `examples/utils/visualize.py` |
-| Cluster build guides (MC3, LC Linux, macOS) | `docs/instructions/` |
-| Agent authoring principles | `docs/principles/` |
+- `examples/` — glissile loops, Frank-Read, strain hardening (Cu, Al); SLURM submit scripts
+- `examples/utils/visualize.py` — plots and movies from restart files
+- `docs/instructions/` — build notes for MC3, LC Linux, macOS
 
-Run `paradis` from the **repository root** so `inputs/` paths in `.ctrl` files resolve. See `docs/instructions/mc3.md` for MC3 copy-paste workflows.
+Run `paradis` from the repo root. MC3: `docs/instructions/mc3.md`.
 
 ## Installation
 
@@ -99,7 +96,7 @@ All other switches are documented in `makefile.setup`.
 * `./docs`     : documentation (instructions, principles)
 * `./inputs`   : Rijm tables, FMM tables, gnuplot defaults
 * `./tests`    : upstream example tests (`*.ctrl`, `*.data`, `*.sh`)
-* `./examples` : MNMG research examples with submit scripts and visualization
+* `./examples` : research examples with submit scripts and visualization
 * `./utils`    : support utilities
 * `./tools`    : support tools
 

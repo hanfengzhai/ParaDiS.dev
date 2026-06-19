@@ -6,7 +6,7 @@
 #SBATCH -N 1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH -t 04:00:00
+#SBATCH -t 10:00:00
 
 set -euo pipefail
 
@@ -55,6 +55,7 @@ fi
 rm -rf "${RESULTS}" "${LOG}"
 
 echo "Launching ${NDOMS} MPI tasks..."
-srun -n "${NDOMS}" "${EXE}" -d "${DAT}" "${CTL}" | tee -a "${LOG}"
+export OMPI_MCA_hwloc_base_binding_policy=none
+srun --cpu-bind=none -n "${NDOMS}" "${EXE}" -d "${DAT}" "${CTL}" | tee -a "${LOG}"
 
 echo "Job finished: $(date)"

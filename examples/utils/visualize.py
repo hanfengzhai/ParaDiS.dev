@@ -2,6 +2,7 @@
 """Visualize ParaDiS gnuplot frames and properties for any example.
 
 Writes PNG frames, summary plots, and MP4/MOV animation under output/.
+Intermediate frame PNGs under output/frames/ are removed after a video is written.
 
 Usage (from an example directory):
     python ../utils/visualize.py
@@ -16,6 +17,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import shutil
 
 import imageio.v2 as imageio
 import matplotlib.gridspec as gridspec
@@ -513,6 +515,12 @@ class ParadiSVisualizer:
             if name.lower().endswith(".gif"):
                 os.remove(os.path.join(self.output_dir, name))
 
+    def _remove_frame_pngs(self):
+        if not os.path.isdir(self.frames_dir):
+            return
+        shutil.rmtree(self.frames_dir)
+        tqdm.write("  removed {}".format(self.frames_dir))
+
     def _write_animations(self, png_paths):
         self._remove_gif_outputs()
         tqdm.write("Writing animation...")
@@ -520,6 +528,7 @@ class ParadiSVisualizer:
             out_path = os.path.join(self.output_dir, "dislocation_network" + ext)
             if self._write_video(png_paths, out_path):
                 tqdm.write("  {}".format(out_path))
+                self._remove_frame_pngs()
                 return
         tqdm.write("  video skipped (mp4/mov write failed)")
 

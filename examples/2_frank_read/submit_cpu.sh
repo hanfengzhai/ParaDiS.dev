@@ -57,6 +57,7 @@ fi
 rm -rf "${RESULTS}" "${LOG}"
 
 echo "Launching ${NDOMS} MPI tasks..."
-srun -n "${NDOMS}" "${EXE}" -d "${DAT}" "${CTL}" | tee -a "${LOG}"
+export OMPI_MCA_hwloc_base_binding_policy=none
+srun --cpu-bind=none -n "${NDOMS}" "${EXE}" -d "${DAT}" "${CTL}" | tee -a "${LOG}"
 
 echo "Job finished: $(date)"

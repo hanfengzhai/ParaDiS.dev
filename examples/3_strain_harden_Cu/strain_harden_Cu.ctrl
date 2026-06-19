@@ -8,6 +8,9 @@
 #    mpirun -n 8 ./bin/paradis -d tests/Copper.data \
 #                           examples/3_strain_harden_Cu/strain_harden_Cu.ctrl
 #
+#  Reference tests/Copper.ctrl uses maxstep = 200000 for full strain hardening.
+#  This example uses 20000 cycles (~1% plastic strain) for visible network evolution.
+#
 dirname = "examples/3_strain_harden_Cu/strain_harden_Cu_results"
 
 numXdoms = 2
@@ -27,7 +30,7 @@ enforceGlidePlanes = 1
 enableCrossSlip = 1
 splitMultiNodeFreq = 1
 
-maxstep = 500
+maxstep = 20000
 timestepIntegrator = "trapezoid"
 nextDT = 1.0e-12
 rTol = 10.0
@@ -59,13 +62,13 @@ elasticinteraction = 1
 
 savetimers = 0
 savecn = 1
-savecnfreq = 100
+savecnfreq = 1000
 savecncounter = 0
 gnuplot = 1
-gnuplotfreq = 50
+gnuplotfreq = 1000
 gnuplotcounter = 0
-povray = 1
-povrayfreq = 50
+povray = 0
+povrayfreq = 1000
 povraycounter = 0
 saveprop = 1
 savepropfreq = 10
