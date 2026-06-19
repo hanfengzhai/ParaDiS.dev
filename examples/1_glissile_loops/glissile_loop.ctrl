@@ -9,6 +9,8 @@
 #    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/glissile_loop.data \
 #                           examples/1_glissile_loops/glissile_loop.ctrl
 #
+#  Run long enough for the expanding loop to cross periodic boundaries (box ±2000 b).
+#
 dirname = "examples/1_glissile_loops/glissile_loop_results"
 
 numXdoms = 2
@@ -21,7 +23,7 @@ numZcells = 4
 
 fmEnabled = 0
 
-maxstep = 1000
+maxstep = 4000
 remeshRule = 2
 minSeg = 10.000000
 maxSeg = 200.000000
@@ -58,13 +60,13 @@ appliedStress = [
 
 savetimers = 0
 savecn = 1
-savecnfreq = 50
+savecnfreq = 200
 savecncounter = 0
 gnuplot = 1
-gnuplotfreq = 50
+gnuplotfreq = 200
 gnuplotcounter = 0
-povray = 1
-povrayfreq = 50
+povray = 0
+povrayfreq = 200
 povraycounter = 0
 saveprop = 1
 savepropfreq = 10

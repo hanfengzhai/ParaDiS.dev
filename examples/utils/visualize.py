@@ -143,11 +143,15 @@ class ParadiSVisualizer:
 
     def _log_paths(self):
         basename = self._log_basename()
-        return [
-            os.path.join(self.example_dir, basename),
-            os.path.join(os.path.dirname(self.results_dir), basename),
-            os.path.join(self.results_dir, basename),
-        ]
+        names = [basename, basename.replace(".log", "_cpu.log")]
+        paths = []
+        for name in names:
+            paths.extend([
+                os.path.join(self.example_dir, name),
+                os.path.join(os.path.dirname(self.results_dir), name),
+                os.path.join(self.results_dir, name),
+            ])
+        return paths
 
     def _list_gnuplot_frames(self):
         names = sorted(n for n in os.listdir(self.gnu_dir)
