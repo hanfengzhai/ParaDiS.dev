@@ -1,5 +1,5 @@
 
-# ParaDiS
+# ParaDiS.dev
 
 **Personal research fork.** This repository is my working copy of ParaDiS, adjusted for dislocation-dynamics studies in the **Micro and Nano Mechanics Group** at Stanford University. It adds example workflows, cluster build notes, and visualization tooling on top of the public release. Upstream ParaDiS is not actively developed; see OpenDiS below.
 
