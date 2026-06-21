@@ -1,17 +1,12 @@
 #
-#  Closed BCC glissile loop on the (001) plane under applied shear stress.
-#
-#  Geometry is rotated from tests/shearloopBCC_LinCS (proven expanding loop).
-#  Mobility and stress match that test; loop plane normal is (001).
+#  Glissile loop on (111) with BCC mobility.
 #
 #  Run from the ParaDiS repository root:
-#    python examples/1_glissile_loops/make_loop_data.py
-#    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/glissile_loop.data \
-#                           examples/1_glissile_loops/glissile_loop.ctrl
+#    python examples/1_glissile_loops/make_loop_data.py --case 111_BCC
+#    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/111_BCC/glissile_loop.data \
+#                           examples/1_glissile_loops/111_BCC/glissile_loop.ctrl
 #
-#  Run long enough for the expanding loop to cross periodic boundaries (box ±2000 b).
-#
-dirname = "examples/1_glissile_loops/glissile_loop_results"
+dirname = "examples/1_glissile_loops/111_BCC/glissile_loop_results"
 
 numXdoms = 2
 numYdoms = 2
@@ -50,12 +45,12 @@ edotdir = [
   ]
 #  Voigt (xx, yy, zz, yz, zx, xy): rotated from shearloopBCC_LinCS.ctrl.
 appliedStress = [
-  0.000000e+00
-  0.000000e+00
-  0.000000e+00
-  6.522095e+07
-  1.119015e+07
-  0.000000e+00
+  -5.403080e+07
+  5.403080e+07
+  -1.676381e-08
+  2.701540e+07
+  -2.701540e+07
+  -3.422610e-08
   ]
 
 savetimers = 0

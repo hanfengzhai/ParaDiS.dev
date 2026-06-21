@@ -42,9 +42,10 @@ BOX_COLOR = "#1a1a1a"
 LINE_COLOR = "darkblue"
 SPATIAL_AXIS_LABELS = (r"$X$ [$\mu$m]", r"$Y$ [$\mu$m]", r"$Z$ [$\mu$m]")
 DEFAULT_BURGMAG_M = 2.8754e-10  # Ta BCC
-# Oblique 3D views distort in-plane ellipses and can look like out-of-plane tilt.
-EXAMPLE_VIEWS = {
-    "glissile_loop": {"elev": 90, "azim": -90},
+# Oblique 3D views distort in-plane ellipses; glissile loops use plane-normal views.
+GLISSILE_VIEWS = {
+    "001": {"elev": 90, "azim": -90},
+    "111": {"elev": 35.26, "azim": 45.0},
 }
 
 
@@ -262,8 +263,30 @@ class ParadiSVisualizer:
         ax.view_init(elev=view["elev"], azim=view["azim"])
         self._apply_scientific_ticks_3d(ax)
 
+    def _glissile_plane(self):
+        if self.example_name != "glissile_loop":
+            return None
+        base = os.path.basename(os.path.normpath(self.example_dir))
+        if base.startswith("001"):
+            return "001"
+        if base.startswith("111"):
+            return "111"
+        return None
+
+    def _glissile_case_label(self):
+        base = os.path.basename(os.path.normpath(self.example_dir))
+        if self.example_name != "glissile_loop":
+            return None
+        parts = base.split("_", 1)
+        if len(parts) == 2:
+            return "{} {}".format(parts[0], parts[1])
+        return base
+
     def _view_angles(self):
-        return EXAMPLE_VIEWS.get(self.example_name, {"elev": 22, "azim": -58})
+        plane = self._glissile_plane()
+        if plane is not None:
+            return GLISSILE_VIEWS[plane]
+        return {"elev": 22, "azim": -58}
 
     def _trim_image_whitespace(self, path, threshold=240, margins=(10, 10, 10, 55)):
         """Crop near-white borders; margins are (top, bottom, left, right) in pixels."""
@@ -556,8 +579,9 @@ class ParadiSVisualizer:
             text = "{}, cycle {}".format(label, cycle)
         else:
             text = label
-        if self.example_name == "glissile_loop":
-            text += " ((001) view)"
+        label = self._glissile_case_label()
+        if label is not None:
+            text += " ({} view)".format(label)
         ax.text2D(0.5, 0.02, text, transform=ax.transAxes,
                   fontsize=FONT_SIZE, va="bottom", ha="center",
                   bbox=dict(facecolor="white", edgecolor="none", alpha=0.85, pad=2.0))

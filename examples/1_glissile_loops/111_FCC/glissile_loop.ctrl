@@ -1,0 +1,67 @@
+#
+#  Glissile loop on (111) with FCC mobility.
+#
+#  Run from the ParaDiS repository root:
+#    python examples/1_glissile_loops/make_loop_data.py --case 111_FCC
+#    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/111_FCC/glissile_loop.data \
+#                           examples/1_glissile_loops/111_FCC/glissile_loop.ctrl
+#
+dirname = "examples/1_glissile_loops/111_FCC/glissile_loop_results"
+
+numXdoms = 2
+numYdoms = 2
+numZdoms = 2
+
+numXcells = 4
+numYcells = 4
+numZcells = 4
+
+fmEnabled = 0
+
+maxstep = 4000
+remeshRule = 2
+minSeg = 10.000000
+maxSeg = 200.000000
+rTol = 1.000000e+00
+timestepIntegrator = "trapezoid"
+maxDT = 1.000000e-05
+
+enforceGlidePlanes = 1
+enableCrossSlip = 0
+
+rc = 5.000000
+MobScrew = 5.000000e+04
+MobEdge = 5.000000e+04
+MobClimb = 1.000000e+00
+mobilityLaw = "FCC_linear"
+
+elasticinteraction = 1
+
+loadType = 0
+edotdir = [
+  0.0
+  0.0
+  1.0
+  ]
+#  Voigt (xx, yy, zz, yz, zx, xy): rotated from shearloopBCC_LinCS.ctrl.
+appliedStress = [
+  -5.403080e+07
+  5.403080e+07
+  -1.676381e-08
+  2.701540e+07
+  -2.701540e+07
+  -3.422610e-08
+  ]
+
+savetimers = 0
+savecn = 1
+savecnfreq = 200
+savecncounter = 0
+gnuplot = 1
+gnuplotfreq = 200
+gnuplotcounter = 0
+povray = 0
+povrayfreq = 200
+povraycounter = 0
+saveprop = 1
+savepropfreq = 10

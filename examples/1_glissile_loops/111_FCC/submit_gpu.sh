@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J paradis-glissile-loop
+#SBATCH -J paradis-gloop-111-fcc
 #SBATCH -o bash_logs/glissile_loop.%j.out
 #SBATCH -e bash_logs/glissile_loop.%j.err
 #SBATCH -p gpu-ampere
@@ -18,24 +18,28 @@ module load gnu12/12.3.0
 module load openmpi4/4.1.6
 module load cuda/12.5
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CASE="$(basename "${SCRIPT_DIR}")"
+CASE_REL="examples/1_glissile_loops/${CASE}"
+
 if [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/glissile_loop.ctrl" ]]; then
-    REPO_ROOT="$(cd "${SLURM_SUBMIT_DIR}/../.." && pwd)"
-elif [[ -n "${SLURM_SUBMIT_DIR:-}" && -f "${SLURM_SUBMIT_DIR}/examples/1_glissile_loops/glissile_loop.ctrl" ]]; then
-    REPO_ROOT="$(cd "${SLURM_SUBMIT_DIR}" && pwd)"
-elif [[ -f "$(dirname "$0")/glissile_loop.ctrl" ]]; then
-    REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+    SCRIPT_DIR="${SLURM_SUBMIT_DIR}"
+    CASE="$(basename "${SCRIPT_DIR}")"
+    CASE_REL="examples/1_glissile_loops/${CASE}"
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+elif [[ -f "${SCRIPT_DIR}/glissile_loop.ctrl" ]]; then
+    REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 else
-    echo "ERROR: cannot locate ParaDiS repository root" >&2
-    echo "Submit from examples/1_glissile_loops:  cd examples/1_glissile_loops && sbatch submit_gpu.sh" >&2
+    echo "ERROR: cannot locate glissile loop case directory" >&2
     exit 1
 fi
 cd "$REPO_ROOT"
 
 EXE="${REPO_ROOT}/bin/paradis"
-DAT="examples/1_glissile_loops/glissile_loop.data"
-CTL="examples/1_glissile_loops/glissile_loop.ctrl"
-LOG="examples/1_glissile_loops/glissile_loop.log"
-RESULTS="examples/1_glissile_loops/glissile_loop_results"
+DAT="${CASE_REL}/glissile_loop.data"
+CTL="${CASE_REL}/glissile_loop.ctrl"
+LOG="${CASE_REL}/glissile_loop.log"
+RESULTS="${CASE_REL}/glissile_loop_results"
 
 NDOMS=8
 
@@ -47,6 +51,7 @@ export NVCC_FLAGS="-O3 -g -rdc=true -Wno-deprecated-gpu-targets -gencode arch=co
 echo "Job started: $(date)"
 echo "Host: $(hostname)"
 echo "Repo: ${REPO_ROOT}"
+echo "Case: ${CASE_REL}"
 
 if [ ! -x "${EXE}" ]; then
     echo "Building ParaDiS with GPU support on ${HOSTNAME}..."
@@ -70,5 +75,8 @@ rm -rf "${RESULTS}" "${LOG}" slurm*.out
 echo "Launching ${NDOMS} MPI tasks..."
 export OMPI_MCA_hwloc_base_binding_policy=none
 srun --cpu-bind=none -n "${NDOMS}" "${EXE}" -d "${DAT}" "${CTL}" | tee -a "${LOG}"
+
+echo "Running visualization..."
+python3 examples/utils/visualize.py --example-dir "${REPO_ROOT}/${CASE_REL}"
 
 echo "Job finished: $(date)"

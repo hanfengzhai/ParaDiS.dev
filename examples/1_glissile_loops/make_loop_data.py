@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Build a closed glissile loop on the (001) plane from the proven shearloop test.
+"""Build glissile-loop cases: (001) and (111) planes × BCC and FCC mobility.
 
-The reference loop in tests/shearloopBCC_LinCS.data lies in a {110} glide plane
-(normal (1,-1,0)).  We rotate positions, Burgers vectors, and glide normals so
-the loop plane becomes z = 0 ((001)), then write glissile_loop.data.
+Geometry is rotated from tests/shearloopBCC_LinCS.data.  Each case lives in
+<plane>_<crystal>/ with glissile_loop.data, .ctrl, and submit scripts.
+
+Usage (from repo root):
+    python examples/1_glissile_loops/make_loop_data.py
+    python examples/1_glissile_loops/make_loop_data.py --case 001_FCC
 """
 
 from __future__ import annotations
 
+import argparse
 import os
 import re
 
@@ -16,11 +20,53 @@ import numpy as np
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 SRC_DATA = os.path.join(REPO_ROOT, "tests", "shearloopBCC_LinCS.data")
-OUT_PATH = os.path.join(SCRIPT_DIR, "glissile_loop.data")
-
 BOX_HALF = 2000.0
 PLANE_NORMAL_OLD = np.array([1.0, -1.0, 0.0])
-PLANE_NORMAL_NEW = np.array([0.0, 0.0, 1.0])
+
+CASES = ("001_BCC", "001_FCC", "111_BCC", "111_FCC")
+
+PLANE_CONFIGS = {
+    "001": {"normal": np.array([0.0, 0.0, 1.0]), "label": "(001)"},
+    "111": {"normal": np.array([1.0, 1.0, 1.0]), "label": "(111)"},
+}
+
+MOBILITY_CONFIGS = {
+    "BCC": {
+        "mobilityLaw": "BCC_Linear",
+        "MobScrew": "1.000000e+00",
+        "MobEdge": "1.000000e+02",
+        "MobClimb": "1.000000e-02",
+        "rc": "2.000000",
+        "enableCrossSlip": 0,
+    },
+    "FCC": {
+        "mobilityLaw": "FCC_linear",
+        "MobScrew": "5.000000e+04",
+        "MobEdge": "5.000000e+04",
+        "MobClimb": "1.000000e+00",
+        "rc": "5.000000",
+        "enableCrossSlip": 0,
+    },
+}
+
+STRESS_VOIGT = {
+    "001": [
+        0.000000e00,
+        0.000000e00,
+        0.000000e00,
+        6.522095e07,
+        1.119015e07,
+        0.000000e00,
+    ],
+    "111": [
+        -5.403080e07,
+        5.403080e07,
+        -1.676381e-08,
+        2.701540e07,
+        -2.701540e07,
+        -3.422610e-08,
+    ],
+}
 
 PRIMARY_RE = re.compile(
     r"^\s+0,(\d+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+(\d+)\s+(\d+)"
@@ -31,6 +77,178 @@ ARM_RE = re.compile(
 NORMAL_RE = re.compile(
     r"^\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s+([-\d.eE+]+)\s*$"
 )
+
+SUBMIT_CPU = """\
+#!/bin/bash
+#SBATCH -J paradis-gloop-{case_slug}-cpu
+#SBATCH -o bash_logs/glissile_loop_cpu.%j.out
+#SBATCH -e bash_logs/glissile_loop_cpu.%j.err
+#SBATCH -p cpu
+#SBATCH -N 1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH -t 02:00:00
+
+set -euo pipefail
+
+mkdir -p bash_logs
+
+module purge
+module load gnu12/12.3.0
+module load openmpi4/4.1.6
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CASE="$(basename "${{SCRIPT_DIR}}")"
+CASE_REL="examples/1_glissile_loops/${{CASE}}"
+
+if [[ -n "${{SLURM_SUBMIT_DIR:-}}" && -f "${{SLURM_SUBMIT_DIR}}/glissile_loop.ctrl" ]]; then
+    SCRIPT_DIR="${{SLURM_SUBMIT_DIR}}"
+    CASE="$(basename "${{SCRIPT_DIR}}")"
+    CASE_REL="examples/1_glissile_loops/${{CASE}}"
+    REPO_ROOT="$(cd "${{SCRIPT_DIR}}/../../.." && pwd)"
+elif [[ -f "${{SCRIPT_DIR}}/glissile_loop.ctrl" ]]; then
+    REPO_ROOT="$(cd "${{SCRIPT_DIR}}/../../.." && pwd)"
+else
+    echo "ERROR: cannot locate glissile loop case directory" >&2
+    exit 1
+fi
+cd "$REPO_ROOT"
+
+EXE="${{REPO_ROOT}}/bin/paradis"
+DAT="${{CASE_REL}}/glissile_loop.data"
+CTL="${{CASE_REL}}/glissile_loop.ctrl"
+LOG="${{CASE_REL}}/glissile_loop_cpu.log"
+RESULTS="${{CASE_REL}}/glissile_loop_results"
+
+NDOMS=8
+
+echo "Job started: $(date)"
+echo "Host: $(hostname)"
+echo "Repo: ${{REPO_ROOT}}"
+echo "Case: ${{CASE_REL}}"
+
+if [ ! -x "${{EXE}}" ]; then
+    echo "Building ParaDiS (CPU) on ${{HOSTNAME}}..."
+    mkdir -p "${{REPO_ROOT}}/obj/p" "${{REPO_ROOT}}/obj/s" "${{REPO_ROOT}}/bin"
+    make SYS=linux
+fi
+
+if [ ! -x "${{EXE}}" ]; then
+    echo "ERROR: ${{EXE}} not found after build"
+    exit 1
+fi
+
+rm -rf "${{RESULTS}}" "${{LOG}}"
+
+echo "Launching ${{NDOMS}} MPI tasks..."
+export OMPI_MCA_hwloc_base_binding_policy=none
+srun --cpu-bind=none -n "${{NDOMS}}" "${{EXE}}" -d "${{DAT}}" "${{CTL}}" | tee -a "${{LOG}}"
+
+echo "Running visualization..."
+python3 examples/utils/visualize.py --example-dir "${{REPO_ROOT}}/${{CASE_REL}}"
+
+echo "Job finished: $(date)"
+"""
+
+SUBMIT_GPU = """\
+#!/bin/bash
+#SBATCH -J paradis-gloop-{case_slug}
+#SBATCH -o bash_logs/glissile_loop.%j.out
+#SBATCH -e bash_logs/glissile_loop.%j.err
+#SBATCH -p gpu-ampere
+#SBATCH -N 1
+#SBATCH --ntasks=8
+#SBATCH --cpus-per-task=1
+#SBATCH --gres=gpu:1
+#SBATCH -t 02:00:00
+
+set -euo pipefail
+
+mkdir -p bash_logs
+
+module purge
+module load gnu12/12.3.0
+module load openmpi4/4.1.6
+module load cuda/12.5
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+CASE="$(basename "${{SCRIPT_DIR}}")"
+CASE_REL="examples/1_glissile_loops/${{CASE}}"
+
+if [[ -n "${{SLURM_SUBMIT_DIR:-}}" && -f "${{SLURM_SUBMIT_DIR}}/glissile_loop.ctrl" ]]; then
+    SCRIPT_DIR="${{SLURM_SUBMIT_DIR}}"
+    CASE="$(basename "${{SCRIPT_DIR}}")"
+    CASE_REL="examples/1_glissile_loops/${{CASE}}"
+    REPO_ROOT="$(cd "${{SCRIPT_DIR}}/../../.." && pwd)"
+elif [[ -f "${{SCRIPT_DIR}}/glissile_loop.ctrl" ]]; then
+    REPO_ROOT="$(cd "${{SCRIPT_DIR}}/../../.." && pwd)"
+else
+    echo "ERROR: cannot locate glissile loop case directory" >&2
+    exit 1
+fi
+cd "$REPO_ROOT"
+
+EXE="${{REPO_ROOT}}/bin/paradis"
+DAT="${{CASE_REL}}/glissile_loop.data"
+CTL="${{CASE_REL}}/glissile_loop.ctrl"
+LOG="${{CASE_REL}}/glissile_loop.log"
+RESULTS="${{CASE_REL}}/glissile_loop_results"
+
+NDOMS=8
+
+export CUDA_PATH=/usr/local/cuda-12.5
+export CUDA_LIBS=/usr/local/cuda-12.5/lib64
+export NVCC="${{CUDA_PATH}}/bin/nvcc"
+export NVCC_FLAGS="-O3 -g -rdc=true -Wno-deprecated-gpu-targets -gencode arch=compute_80,code=sm_80"
+
+echo "Job started: $(date)"
+echo "Host: $(hostname)"
+echo "Repo: ${{REPO_ROOT}}"
+echo "Case: ${{CASE_REL}}"
+
+if [ ! -x "${{EXE}}" ]; then
+    echo "Building ParaDiS with GPU support on ${{HOSTNAME}}..."
+    mkdir -p "${{REPO_ROOT}}/obj/p" "${{REPO_ROOT}}/obj/s" "${{REPO_ROOT}}/bin"
+    make SYS=linux GPU_ENABLED=ON
+fi
+
+if [ ! -x "${{EXE}}" ]; then
+    echo "ERROR: ${{EXE}} not found after build"
+    exit 1
+fi
+
+if command -v nvidia-smi >/dev/null 2>&1; then
+    nvidia-smi -L
+else
+    echo "WARNING: nvidia-smi not available on this node"
+fi
+
+rm -rf "${{RESULTS}}" "${{LOG}}" slurm*.out
+
+echo "Launching ${{NDOMS}} MPI tasks..."
+export OMPI_MCA_hwloc_base_binding_policy=none
+srun --cpu-bind=none -n "${{NDOMS}}" "${{EXE}}" -d "${{DAT}}" "${{CTL}}" | tee -a "${{LOG}}"
+
+echo "Running visualization..."
+python3 examples/utils/visualize.py --example-dir "${{REPO_ROOT}}/${{CASE_REL}}"
+
+echo "Job finished: $(date)"
+"""
+
+CLEAR_RERUN = """\
+rm bash_logs/*
+rm glissile_loop.log
+rm glissile_loop_cpu.log
+rm -r glissile_loop_results/*
+rm output/*
+"""
+
+
+def parse_case(case_name: str):
+    plane, crystal = case_name.split("_", 1)
+    if plane not in PLANE_CONFIGS or crystal not in MOBILITY_CONFIGS:
+        raise SystemExit("Unknown case {!r}".format(case_name))
+    return plane, crystal
 
 
 def rotation_matrix_from_vectors(vec_from: np.ndarray, vec_to: np.ndarray) -> np.ndarray:
@@ -49,66 +267,29 @@ def rotation_matrix_from_vectors(vec_from: np.ndarray, vec_to: np.ndarray) -> np
     return np.eye(3) + vx + vx @ vx * ((1.0 - c) / (s * s))
 
 
-def voigt_to_tensor(voigt):
-    return np.array(
-        [
-            [voigt[0], voigt[5], voigt[4]],
-            [voigt[5], voigt[1], voigt[3]],
-            [voigt[4], voigt[3], voigt[2]],
-        ],
-        dtype=float,
-    )
-
-
-def tensor_to_voigt(tensor):
-    return [
-        tensor[0, 0],
-        tensor[1, 1],
-        tensor[2, 2],
-        tensor[1, 2],
-        tensor[0, 2],
-        tensor[0, 1],
-    ]
-
-
-def rotated_applied_stress(rotation: np.ndarray) -> list[float]:
-    """Voigt stress from tests/shearloopBCC_LinCS.ctrl, rotated into (001) frame."""
-    voigt = [5.40308e7, -5.40308e7, 0.0, -2.70154e7, 2.70154e7, 0.0]
-    sigma = voigt_to_tensor(voigt)
-    sigma_rot = rotation @ sigma @ rotation.T
-    return tensor_to_voigt(sigma_rot)
-
-
 def parse_shearloop(path: str):
-    header_lines = []
     nodes = []
     in_nodal = False
 
     with open(path) as fh:
         for line in fh:
             if line.strip().startswith("nodalData"):
-                header_lines.append(line.rstrip("\n"))
                 in_nodal = True
                 continue
-
             if not in_nodal:
-                header_lines.append(line.rstrip("\n"))
                 continue
 
             primary = PRIMARY_RE.match(line)
             if primary:
-                node_id = int(primary.group(1))
-                pos = np.array(
-                    [float(primary.group(2)), float(primary.group(3)), float(primary.group(4))]
-                )
-                n_arms = int(primary.group(5))
-                constraint = int(primary.group(6))
                 nodes.append(
                     {
-                        "id": node_id,
-                        "pos": pos,
-                        "n_arms": n_arms,
-                        "constraint": constraint,
+                        "id": int(primary.group(1)),
+                        "pos": np.array(
+                            [float(primary.group(2)), float(primary.group(3)),
+                             float(primary.group(4))]
+                        ),
+                        "n_arms": int(primary.group(5)),
+                        "constraint": int(primary.group(6)),
                         "arms": [],
                     }
                 )
@@ -119,7 +300,9 @@ def parse_shearloop(path: str):
                 burg = np.array(
                     [float(arm.group(2)), float(arm.group(3)), float(arm.group(4))]
                 )
-                nodes[-1]["arms"].append({"nbr": int(arm.group(1)), "burg": burg, "normal": None})
+                nodes[-1]["arms"].append(
+                    {"nbr": int(arm.group(1)), "burg": burg, "normal": None}
+                )
                 continue
 
             normal = NORMAL_RE.match(line)
@@ -129,11 +312,7 @@ def parse_shearloop(path: str):
                 )
                 nodes[-1]["arms"][-1]["normal"] = nvec
 
-    return header_lines, nodes
-
-
-def _format_float(value: float) -> str:
-    return "{:.14e}".format(value)
+    return nodes
 
 
 def transform_nodes(nodes, rotation: np.ndarray):
@@ -145,14 +324,11 @@ def transform_nodes(nodes, rotation: np.ndarray):
             arm["normal"] /= np.linalg.norm(arm["normal"])
 
 
-def build_data_text(rotation: np.ndarray):
-    _, nodes = parse_shearloop(SRC_DATA)
-    transform_nodes(nodes, rotation)
-
+def build_data_text(plane_key: str, nodes) -> str:
+    label = PLANE_CONFIGS[plane_key]["label"]
     lines = [
         "#",
-        "#  Closed BCC glissile loop on the (001) plane.",
-        "#  Rotated from tests/shearloopBCC_LinCS.data ({110} glide plane).",
+        "#  Glissile loop on the {} plane (from shearloopBCC_LinCS.data).".format(label),
         "#",
         "dataFileVersion =   4",
         "numFileSegments =   1",
@@ -212,27 +388,144 @@ def build_data_text(rotation: np.ndarray):
                 )
             )
 
-    return "\n".join(lines) + "\n", nodes
+    return "\n".join(lines) + "\n"
+
+
+def build_plane_nodes(plane_key: str):
+    rotation = rotation_matrix_from_vectors(
+        PLANE_NORMAL_OLD, PLANE_CONFIGS[plane_key]["normal"]
+    )
+    nodes = parse_shearloop(SRC_DATA)
+    transform_nodes(nodes, rotation)
+    return nodes
+
+
+def write_ctrl(case_name: str):
+    plane, crystal = parse_case(case_name)
+    mob = MOBILITY_CONFIGS[crystal]
+    stress = STRESS_VOIGT[plane]
+    case_rel = "examples/1_glissile_loops/{}".format(case_name)
+    plane_label = PLANE_CONFIGS[plane]["label"]
+
+    lines = [
+        "#",
+        "#  Glissile loop on {} with {} mobility.".format(plane_label, crystal),
+        "#",
+        "#  Run from the ParaDiS repository root:",
+        "#    python examples/1_glissile_loops/make_loop_data.py --case {}".format(case_name),
+        "#    mpirun -n 8 ./bin/paradis -d {}/glissile_loop.data \\".format(case_rel),
+        "#                           {}/glissile_loop.ctrl".format(case_rel),
+        "#",
+        'dirname = "{}/glissile_loop_results"'.format(case_rel),
+        "",
+        "numXdoms = 2",
+        "numYdoms = 2",
+        "numZdoms = 2",
+        "",
+        "numXcells = 4",
+        "numYcells = 4",
+        "numZcells = 4",
+        "",
+        "fmEnabled = 0",
+        "",
+        "maxstep = 4000",
+        "remeshRule = 2",
+        "minSeg = 10.000000",
+        "maxSeg = 200.000000",
+        "rTol = 1.000000e+00",
+        'timestepIntegrator = "trapezoid"',
+        "maxDT = 1.000000e-05",
+        "",
+        "enforceGlidePlanes = 1",
+        "enableCrossSlip = {}".format(mob["enableCrossSlip"]),
+        "",
+        "rc = {}".format(mob["rc"]),
+        "MobScrew = {}".format(mob["MobScrew"]),
+        "MobEdge = {}".format(mob["MobEdge"]),
+        "MobClimb = {}".format(mob["MobClimb"]),
+        'mobilityLaw = "{}"'.format(mob["mobilityLaw"]),
+        "",
+        "elasticinteraction = 1",
+        "",
+        "loadType = 0",
+        "edotdir = [",
+        "  0.0",
+        "  0.0",
+        "  1.0",
+        "  ]",
+        "#  Voigt (xx, yy, zz, yz, zx, xy): rotated from shearloopBCC_LinCS.ctrl.",
+        "appliedStress = [",
+    ]
+    for val in stress:
+        lines.append("  {:.6e}".format(val))
+    lines.extend([
+        "  ]",
+        "",
+        "savetimers = 0",
+        "savecn = 1",
+        "savecnfreq = 200",
+        "savecncounter = 0",
+        "gnuplot = 1",
+        "gnuplotfreq = 200",
+        "gnuplotcounter = 0",
+        "povray = 0",
+        "povrayfreq = 200",
+        "povraycounter = 0",
+        "saveprop = 1",
+        "savepropfreq = 10",
+        "",
+    ])
+    return "\n".join(lines)
+
+
+def write_case_scripts(case_name: str, case_dir: str):
+    slug = case_name.lower().replace("_", "-")
+    for name, template in (("submit_cpu.sh", SUBMIT_CPU), ("submit_gpu.sh", SUBMIT_GPU)):
+        path = os.path.join(case_dir, name)
+        with open(path, "w") as fh:
+            fh.write(template.format(case_slug=slug))
+        os.chmod(path, 0o755)
+
+    clear_path = os.path.join(case_dir, "clear_rerun.sh")
+    with open(clear_path, "w") as fh:
+        fh.write(CLEAR_RERUN)
+    os.chmod(clear_path, 0o755)
+
+
+def setup_case(case_name: str, plane_data_cache: dict):
+    plane, _crystal = parse_case(case_name)
+    case_dir = os.path.join(SCRIPT_DIR, case_name)
+    os.makedirs(case_dir, exist_ok=True)
+
+    data_path = os.path.join(case_dir, "glissile_loop.data")
+    with open(data_path, "w") as fh:
+        fh.write(plane_data_cache[plane])
+
+    ctrl_path = os.path.join(case_dir, "glissile_loop.ctrl")
+    with open(ctrl_path, "w") as fh:
+        fh.write(write_ctrl(case_name))
+
+    write_case_scripts(case_name, case_dir)
+    print("Setup {}".format(case_name))
 
 
 def main():
-    rotation = rotation_matrix_from_vectors(PLANE_NORMAL_OLD, PLANE_NORMAL_NEW)
-    text, nodes = build_data_text(rotation)
-
-    positions = np.array([node["pos"] for node in nodes])
-    z_span = positions[:, 2].max() - positions[:, 2].min()
-    xy_radius = np.linalg.norm(positions[:, :2], axis=1).max()
-    stress = rotated_applied_stress(rotation)
-
-    with open(OUT_PATH, "w") as fh:
-        fh.write(text)
-
-    print("Wrote {} ({} nodes)".format(OUT_PATH, len(nodes)))
-    print("Loop on (001): z span = {:.3e}, xy radius = {:.1f} b".format(z_span, xy_radius))
-    print(
-        "Rotated appliedStress (Voigt): "
-        + ", ".join("{:.6e}".format(v) for v in stress)
+    parser = argparse.ArgumentParser(description="Generate glissile loop case files")
+    parser.add_argument(
+        "--case",
+        choices=list(CASES) + ["all"],
+        default="all",
+        help="Case to (re)generate (default: all)",
     )
+    args = parser.parse_args()
+    selected = list(CASES) if args.case == "all" else [args.case]
+
+    plane_data_cache = {}
+    for plane in PLANE_CONFIGS:
+        plane_data_cache[plane] = build_data_text(plane, build_plane_nodes(plane))
+
+    for case_name in selected:
+        setup_case(case_name, plane_data_cache)
 
 
 if __name__ == "__main__":
