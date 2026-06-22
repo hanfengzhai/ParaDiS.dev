@@ -1,12 +1,11 @@
 #!/bin/bash
-#SBATCH -J paradis-gloop-001-bcc
-#SBATCH -o bash_logs/glissile_loop.%j.out
-#SBATCH -e bash_logs/glissile_loop.%j.err
-#SBATCH -p gpu-L40S
+#SBATCH -J paradis-gloop-111-bcc-linear-cpu
+#SBATCH -o bash_logs/glissile_loop_cpu.%j.out
+#SBATCH -e bash_logs/glissile_loop_cpu.%j.err
+#SBATCH -p cpu
 #SBATCH -N 1
 #SBATCH --ntasks=8
 #SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:1
 #SBATCH -t 02:00:00
 
 set -euo pipefail
@@ -16,7 +15,6 @@ mkdir -p bash_logs
 module purge
 module load gnu12/12.3.0
 module load openmpi4/4.1.6
-module load cuda/12.5
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 CASE="$(basename "${SCRIPT_DIR}")"
@@ -38,15 +36,10 @@ cd "$REPO_ROOT"
 EXE="${REPO_ROOT}/bin/paradis"
 DAT="${CASE_REL}/glissile_loop.data"
 CTL="${CASE_REL}/glissile_loop.ctrl"
-LOG="${CASE_REL}/glissile_loop.log"
+LOG="${CASE_REL}/glissile_loop_cpu.log"
 RESULTS="${CASE_REL}/glissile_loop_results"
 
 NDOMS=8
-
-export CUDA_PATH=/usr/local/cuda-12.5
-export CUDA_LIBS=/usr/local/cuda-12.5/lib64
-export NVCC="${CUDA_PATH}/bin/nvcc"
-export NVCC_FLAGS="-O3 -g -rdc=true -Wno-deprecated-gpu-targets -gencode arch=compute_89,code=sm_89"
 
 echo "Job started: $(date)"
 echo "Host: $(hostname)"
@@ -54,9 +47,9 @@ echo "Repo: ${REPO_ROOT}"
 echo "Case: ${CASE_REL}"
 
 if [ ! -x "${EXE}" ]; then
-    echo "Building ParaDiS with GPU support on ${HOSTNAME}..."
+    echo "Building ParaDiS (CPU) on ${HOSTNAME}..."
     mkdir -p "${REPO_ROOT}/obj/p" "${REPO_ROOT}/obj/s" "${REPO_ROOT}/bin"
-    make SYS=linux GPU_ENABLED=ON
+    make SYS=linux
 fi
 
 if [ ! -x "${EXE}" ]; then
@@ -64,13 +57,7 @@ if [ ! -x "${EXE}" ]; then
     exit 1
 fi
 
-if command -v nvidia-smi >/dev/null 2>&1; then
-    nvidia-smi -L
-else
-    echo "WARNING: nvidia-smi not available on this node"
-fi
-
-rm -rf "${RESULTS}" "${LOG}" slurm*.out
+rm -rf "${RESULTS}" "${LOG}"
 
 echo "Launching ${NDOMS} MPI tasks..."
 export OMPI_MCA_hwloc_base_binding_policy=none

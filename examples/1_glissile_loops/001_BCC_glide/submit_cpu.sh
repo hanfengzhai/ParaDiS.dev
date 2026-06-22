@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -J paradis-gloop-111-bcc-cpu
+#SBATCH -J paradis-gloop-001-bcc-glide-cpu
 #SBATCH -o bash_logs/glissile_loop_cpu.%j.out
 #SBATCH -e bash_logs/glissile_loop_cpu.%j.err
 #SBATCH -p cpu

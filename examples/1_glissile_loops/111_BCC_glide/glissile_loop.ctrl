@@ -1,12 +1,12 @@
 #
-#  Glissile loop on (111) with FCC_linear mobility.
+#  Glissile loop on (111) with BCC_glide mobility.
 #
 #  Run from the ParaDiS repository root:
-#    python examples/1_glissile_loops/make_loop_data.py --case 111_FCC
-#    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/111_FCC/glissile_loop.data \
-#                           examples/1_glissile_loops/111_FCC/glissile_loop.ctrl
+#    python examples/1_glissile_loops/make_loop_data.py --case 111_BCC_glide
+#    mpirun -n 8 ./bin/paradis -d examples/1_glissile_loops/111_BCC_glide/glissile_loop.data \
+#                           examples/1_glissile_loops/111_BCC_glide/glissile_loop.ctrl
 #
-dirname = "examples/1_glissile_loops/111_FCC/glissile_loop_results"
+dirname = "examples/1_glissile_loops/111_BCC_glide/glissile_loop_results"
 
 numXdoms = 2
 numYdoms = 2
@@ -30,10 +30,10 @@ enforceGlidePlanes = 1
 enableCrossSlip = 0
 
 rc = 5.000000
-MobScrew = 5.000000e+04
-MobEdge = 5.000000e+04
-MobClimb = 1.000000e+00
-mobilityLaw = "FCC_linear"
+MobScrew = 1.000000e+01
+MobEdge = 1.000000e+01
+MobClimb = 1.000000e-08
+mobilityLaw = "BCC_glide"
 
 elasticinteraction = 1
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Build glissile-loop cases: (001) and (111) planes × BCC and FCC mobility.
+"""Build glissile-loop cases: (001) and (111) planes × mobility law.
 
 Geometry is rotated from tests/shearloopBCC_LinCS.data.  Each case lives in
-<plane>_<crystal>/ with glissile_loop.data, .ctrl, and submit scripts.
+<plane>_<mobility>/ with glissile_loop.data, .ctrl, and submit scripts.
 
 Usage (from repo root):
     python examples/1_glissile_loops/make_loop_data.py
-    python examples/1_glissile_loops/make_loop_data.py --case 001_FCC
+    python examples/1_glissile_loops/make_loop_data.py --case 001_BCC_glide
 """
 
 from __future__ import annotations
@@ -23,7 +23,14 @@ SRC_DATA = os.path.join(REPO_ROOT, "tests", "shearloopBCC_LinCS.data")
 BOX_HALF = 2000.0
 PLANE_NORMAL_OLD = np.array([1.0, -1.0, 0.0])
 
-CASES = ("001_BCC", "001_FCC", "111_BCC", "111_FCC")
+CASES = (
+    "001_BCC_Linear",
+    "111_BCC_Linear",
+    "001_BCC_glide",
+    "111_BCC_glide",
+    "001_FCC",
+    "111_FCC",
+)
 
 PLANE_CONFIGS = {
     "001": {"normal": np.array([0.0, 0.0, 1.0]), "label": "(001)"},
@@ -31,7 +38,8 @@ PLANE_CONFIGS = {
 }
 
 MOBILITY_CONFIGS = {
-    "BCC": {
+    "BCC_Linear": {
+        "label": "BCC_Linear",
         "mobilityLaw": "BCC_Linear",
         "MobScrew": "1.000000e+00",
         "MobEdge": "1.000000e+02",
@@ -39,7 +47,17 @@ MOBILITY_CONFIGS = {
         "rc": "2.000000",
         "enableCrossSlip": 0,
     },
+    "BCC_glide": {
+        "label": "BCC_glide",
+        "mobilityLaw": "BCC_glide",
+        "MobScrew": "1.000000e+01",
+        "MobEdge": "1.000000e+01",
+        "MobClimb": "1.000000e-08",
+        "rc": "5.000000",
+        "enableCrossSlip": 0,
+    },
     "FCC": {
+        "label": "FCC_linear",
         "mobilityLaw": "FCC_linear",
         "MobScrew": "5.000000e+04",
         "MobEdge": "5.000000e+04",
@@ -245,10 +263,15 @@ rm output/*
 
 
 def parse_case(case_name: str):
-    plane, crystal = case_name.split("_", 1)
-    if plane not in PLANE_CONFIGS or crystal not in MOBILITY_CONFIGS:
-        raise SystemExit("Unknown case {!r}".format(case_name))
-    return plane, crystal
+    for plane in PLANE_CONFIGS:
+        prefix = plane + "_"
+        if not case_name.startswith(prefix):
+            continue
+        mobility = case_name[len(prefix):]
+        if mobility not in MOBILITY_CONFIGS:
+            break
+        return plane, mobility
+    raise SystemExit("Unknown case {!r}".format(case_name))
 
 
 def rotation_matrix_from_vectors(vec_from: np.ndarray, vec_to: np.ndarray) -> np.ndarray:
@@ -401,15 +424,15 @@ def build_plane_nodes(plane_key: str):
 
 
 def write_ctrl(case_name: str):
-    plane, crystal = parse_case(case_name)
-    mob = MOBILITY_CONFIGS[crystal]
+    plane, mobility_key = parse_case(case_name)
+    mob = MOBILITY_CONFIGS[mobility_key]
     stress = STRESS_VOIGT[plane]
     case_rel = "examples/1_glissile_loops/{}".format(case_name)
     plane_label = PLANE_CONFIGS[plane]["label"]
 
     lines = [
         "#",
-        "#  Glissile loop on {} with {} mobility.".format(plane_label, crystal),
+        "#  Glissile loop on {} with {} mobility.".format(plane_label, mob["label"]),
         "#",
         "#  Run from the ParaDiS repository root:",
         "#    python examples/1_glissile_loops/make_loop_data.py --case {}".format(case_name),
@@ -493,7 +516,7 @@ def write_case_scripts(case_name: str, case_dir: str):
 
 
 def setup_case(case_name: str, plane_data_cache: dict):
-    plane, _crystal = parse_case(case_name)
+    plane, _mobility = parse_case(case_name)
     case_dir = os.path.join(SCRIPT_DIR, case_name)
     os.makedirs(case_dir, exist_ok=True)
 

@@ -1,5 +1,5 @@
 #
-#  Glissile loop on (001) with FCC mobility.
+#  Glissile loop on (001) with FCC_linear mobility.
 #
 #  Run from the ParaDiS repository root:
 #    python examples/1_glissile_loops/make_loop_data.py --case 001_FCC
